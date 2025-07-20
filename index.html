@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dynamic Sudoku Game</title>
+    <style>
+        :root {
+            --board-bg: #ffffff;
+            --cell-border: #d1d1d1;
+            --subgrid-border: #333;
+            --text-color: #2c3e50;
+            --button-bg: #3498db;
+            --button-hover-bg: #2980b9;
+            --fixed-num-color: #333;
+            --user-num-color: #3498db;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            text-align: center;
+            background: linear-gradient(135deg, #74ebd5 0%, #acb6e5 100%);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        .container {
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .controls {
+            margin: 1.5rem 0;
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            align-items: center;
+        }
+
+        select, button {
+            padding: 0.75rem 1.5rem;
+            font-size: 1rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+        }
+        
+        select {
+             background-color: var(--board-bg);
+             border: 1px solid var(--cell-border);
+        }
+
+        button {
+            background-color: var(--button-bg);
+            color: white;
+        }
+
+        button:hover {
+            background-color: var(--button-hover-bg);
+            transform: translateY(-2px);
+        }
+
+        #sudoku-board {
+            margin: auto;
+            border-collapse: collapse;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        td {
+            border: 1px solid var(--cell-border);
+            width: 45px;
+            height: 45px;
+            position: relative;
+        }
+
+        input {
+            width: 100%;
+            height: 100%;
+            text-align: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+            border: none;
+            background-color: transparent;
+            color: var(--user-num-color);
+            padding: 0;
+        }
+
+        input:focus {
+            outline: 2px solid var(--button-bg);
+            z-index: 1;
+        }
+        
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+            appearance: textfield;
+        }
+
+        .bold-border-top { border-top: 3px solid var(--subgrid-border); }
+        .bold-border-left { border-left: 3px solid var(--subgrid-border); }
+        .bold-border-bottom { border-bottom: 3px solid var(--subgrid-border); }
+        .bold-border-right { border-right: 3px solid var(--subgrid-border); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Dynamic Sudoku</h1>
+        <div class="controls">
+            <label for="grid-size">Grid Size:</label>
+            <select id="grid-size" onchange="initGame()">
+                <option value="3">3x3</option>
+                <option value="4">4x4</option>
+                <option value="5">5x5</option>
+                <option value="6">6x6</option>
+                <option value="7">7x7</option>
+                <option value="8">8x8</option>
+                <option value="9" selected>9x9</option>
+            </select>
+            <button type="button" onclick="solveSudoku()">Solve</button>
+            <button type="button" onclick="resetBoard()">Reset</button>
+        </div>
+        <table id="sudoku-board"></table>
+    </div>
+
+    <script>
+        let board = [];
+        let currentSize = 9;
+        let subGridRows, subGridCols;
+        let puzzleBoard = [], solutionBoard = [];
+
+        function getSubGridDimensions(n) {
+            // For standard Sudoku sizes, use square root if possible
+            let sqrt = Math.sqrt(n);
+            if (Number.isInteger(sqrt)) {
+                return { r: sqrt, c: sqrt };
+            }
+            // For non-square grids, find the closest factors
+            let best_r = 1, best_c = n;
+            for (let i = 2; i <= n / 2; i++) {
+                if (n % i === 0) {
+                    let c = n / i;
+                    if (Math.abs(i - c) < Math.abs(best_r - best_c)) {
+                        best_r = i;
+                        best_c = c;
+                    }
+                }
+            }
+            return { r: best_r, c: best_c };
+        }
+
+        function generateFullBoard() {
+            const mat = Array.from({ length: currentSize }, () => Array(currentSize).fill(0));
+
+            function shuffle(arr) {
+                for (let i = arr.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [arr[i], arr[j]] = [arr[j], arr[i]];
+                }
+                return arr;
+            }
+
+            function fillBox(row, col) {
+                const nums = shuffle([...Array(currentSize).keys()].map(i => i + 1));
+                let idx = 0;
+                for (let i = 0; i < subGridRows; i++) {
+                    for (let j = 0; j < subGridCols; j++) {
+                        mat[row + i][col + j] = nums[idx++];
+                    }
+                }
+            }
+
+            function fillDiagonalBoxes() {
+                for (let i = 0; i < currentSize; i += subGridRows) {
+                    fillBox(i, i);
+                }
+            }
+
+            function isValid(mat, row, col, num) {
+                for (let x = 0; x < currentSize; x++) {
+                    if (mat[row][x] === num || mat[x][col] === num) return false;
+                }
+
+                const startRow = row - row % subGridRows;
+                const startCol = col - col % subGridCols;
+                for (let i = 0; i < subGridRows; i++) {
+                    for (let j = 0; j < subGridCols; j++) {
+                        if (mat[startRow + i][startCol + j] === num) return false;
+                    }
+                }
+                return true;
+            }
+
+            function solve(mat) {
+                for (let row = 0; row < currentSize; row++) {
+                    for (let col = 0; col < currentSize; col++) {
+                        if (mat[row][col] === 0) {
+                            for (let num = 1; num <= currentSize; num++) {
+                                if (isValid(mat, row, col, num)) {
+                                    mat[row][col] = num;
+                                    if (solve(mat)) return true;
+                                    mat[row][col] = 0;
+                                }
+                            }
+                            return false;
+                        }
+                    }
+                }
+                return true;
+            }
+
+            fillDiagonalBoxes();
+            solve(mat);
+            return mat;
+        }
+
+        function generatePuzzle(fullBoard, clues = 30) {
+            const puzzle = fullBoard.map(row => [...row]);
+            let count = currentSize * currentSize - clues;
+
+            while (count > 0) {
+                const i = Math.floor(Math.random() * currentSize);
+                const j = Math.floor(Math.random() * currentSize);
+                if (puzzle[i][j] !== 0) {
+                    puzzle[i][j] = 0;
+                    count--;
+                }
+            }
+
+            return puzzle;
+        }
+
+        function createBoardWithPuzzle(puzzle, solution) {
+            const table = document.getElementById("sudoku-board");
+            table.innerHTML = "";
+            board = [];
+
+            for (let i = 0; i < currentSize; i++) {
+                const row = [];
+                const tr = document.createElement("tr");
+                for (let j = 0; j < currentSize; j++) {
+                    const td = document.createElement("td");
+
+                    if (i % subGridRows === 0) td.classList.add("bold-border-top");
+                    if (j % subGridCols === 0) td.classList.add("bold-border-left");
+                    if (i === currentSize - 1) td.classList.add("bold-border-bottom");
+                    if (j === currentSize - 1) td.classList.add("bold-border-right");
+
+                    const input = document.createElement("input");
+                    input.type = "number";
+
+                    if (puzzle[i][j] !== 0) {
+                        input.value = puzzle[i][j];
+                        input.disabled = true;
+                        input.style.color = "var(--fixed-num-color)";
+                    } else {
+                        input.addEventListener("input", (e) => {
+                            const val = +e.target.value;
+                            if (val !== solution[i][j]) {
+                                e.target.value = "";
+                                alert(`Wrong number at (${i + 1}, ${j + 1})!`);
+                            }
+                        });
+                    }
+
+                    td.appendChild(input);
+                    tr.appendChild(td);
+                    row.push(input);
+                }
+                board.push(row);
+                table.appendChild(tr);
+            }
+        }
+
+        function solveSudoku() {
+            let correct = true;
+            for (let i = 0; i < currentSize; i++) {
+                for (let j = 0; j < currentSize; j++) {
+                    const input = board[i][j];
+                    if (!input.disabled) {
+                        if (+input.value !== solutionBoard[i][j]) {
+                            correct = false;
+                            input.style.backgroundColor = "#fbb";
+                        } else {
+                            input.style.backgroundColor = "#bfffc0";
+                        }
+                    }
+                }
+            }
+
+            if (correct) {
+                alert("🎉 Congratulations! You solved it!");
+            }
+        }
+
+        function initGame() {
+            currentSize = parseInt(document.getElementById("grid-size").value);
+            const dims = getSubGridDimensions(currentSize);
+            subGridRows = dims.r;
+            subGridCols = dims.c;
+
+            solutionBoard = generateFullBoard();
+            // For small grids, keep more clues to ensure solvability
+            let clues;
+            if (currentSize <= 4) {
+                clues = currentSize * currentSize - 4;
+            } else if (currentSize === 6) {
+                clues = currentSize * currentSize - 12;
+            } else {
+                clues = currentSize * currentSize - 35;
+            }
+            puzzleBoard = generatePuzzle(solutionBoard, clues);
+            createBoardWithPuzzle(puzzleBoard, solutionBoard);
+        }
+
+        window.onload = initGame;
+    </script>
+</body>
+</html>
